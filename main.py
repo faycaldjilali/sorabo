@@ -3,13 +3,12 @@ import pandas as pd
 from datetime import datetime
 import sys
 import os
-
-# Add src to path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
-
 from src.data_fetcher import get_all_records_for_date, create_excel_simple
 from src.data_processor import filter_by_keywords, remove_duplicates, get_keywords
 from src.utils import load_excel_files
+# Add src to path
+
+
 
 def main():
     st.set_page_config(page_title="BOAMP Data Processor", layout="wide")
