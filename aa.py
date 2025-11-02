@@ -107,7 +107,7 @@ def main():
     target_date_str = target_date.strftime('%Y-%m-%d')
 
     # Max records
-    max_records = st.sidebar.number_input("Maximum records", min_value=100, max_value=10000, value=5000)
+    max_records = st.sidebar.number_input("Maximum records", min_value=100, max_value=10000, value=10000)
 
     # Main content area
     tab1, tab2, tab3 = st.tabs(["Data Extraction", "Keyword Filtering", "Results"])
@@ -299,7 +299,7 @@ def main():
             st.dataframe(columns_df, use_container_width=True)
             
             # Sample data - UPDATED TO SHOW FINAL TABLE RECORDS
-            st.subheader("Final Data Sample (First 3 Records)")
+            st.subheader("Final Data Sample ")
             
             # Determine which dataset to show (priority: cleaned > filtered > raw)
             if 'cleaned_df' in st.session_state:
@@ -326,7 +326,8 @@ def main():
                                 st.write(f"**Matched Keyword:** {row.get('keyword', 'N/A')}")
                         with col2:
                             st.write(f"**Procedure:** {row.get('procedure_libelle', 'N/A')}")
-                            st.write(f"**Date:** {row.get('datelimitereponse', 'N/A')}")
+                            st.write(f"**date limite reponse:** {row.get('datelimitereponse', 'N/A')}")
+                            st.write(f"**date limite reponse:** {row.get('datelimitereponse', 'N/A')}")
             else:
                 st.warning("No records available to display.")
 
