@@ -7,7 +7,7 @@ import io
 
 st.set_page_config(page_title="BOAMP Data Extractor", page_icon="📊", layout="wide")
 
-def get_all_records_for_date(target_date, max_records=5000):
+def get_all_records_for_date(target_date, max_records=10000):
     """Get all records for a specific date with all available fields"""
     url = "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/records"
     all_records = []
@@ -103,7 +103,7 @@ def main():
     st.sidebar.header("Configuration")
 
     # Date input
-    target_date = st.sidebar.date_input("Select target date", value=datetime(2025, 10, 31))
+    target_date = st.sidebar.date_input("Select target date", value=datetime.today())
     target_date_str = target_date.strftime('%Y-%m-%d')
 
     # Max records
@@ -154,39 +154,72 @@ def main():
         # Predefined keywords
         predefined_keywords = [
             "miroiterie", "métallerie", "menuiserie extérieure",
-            "45420000", "Travaux de menuiserie et de charpenterie",
-            "45421100", "Pose de portes et de fenêtres et d'éléments accessoires",
-            "45421110", "Pose d'encadrements de portes et de fenêtres",
-            "45421111", "Pose d'encadrements de portes",
-            "45421112", "Pose d'encadrements de fenêtres",
-            "45421120", "Pose de seuils",
-            "45421130", "Poses de portes et de fenêtres",
-            "45421131", "Pose de portes",
-            "45421132", "Pose de fenêtres",
-            "45421140", "Pose de menuiseries métalliques, excepté portes et fenêtres",
-            "45421141", "Travaux de cloisonnement",
-            "45421142", "Installation de volets",
-            "45421143", "Travaux d'installation de stores",
-            "45421144", "Travaux d'installation de vélums",
-            "45421145", "Travaux d'installation de volets roulants",
-            "44316500", "Serrurerie",
-            "98395000", "Services de serrurerie",
-            "44220000", "Menuiserie pour la construction",
-            "45421000", "Travaux de menuiserie",
-            "34928200", "Clôtures",
-            "34928310", "Clôtures de protection",
-            "45340000", "Travaux d'installation de clôtures, de garde-corps et de dispositifs de sécurité",
-            "45342000", "Pose de clôtures",
-            "42416000", "Ascenseurs, skips, monte-charges, escaliers mécaniques et trottoirs roulants",
-            "42416400", "Escaliers mécaniques",
-            "42419500", "Pièces pour ascenseurs, skips ou escaliers mécaniques",
-            "42419530", "Pièces pour escaliers mécaniques",
-            "44233000", "Escaliers",
-            "44423220", "Escaliers pliants",
-            "45313000", "Travaux d'installation d'ascenseurs et d'escaliers mécaniques",
-            "45313200", "Travaux d'installation d'escaliers mécaniques",
-            "50740000", "Services de réparation et d'entretien d'escaliers mécaniques",
-            "51511000", "Services d'installation de matériel de levage et de manutention, excepté ascenseurs et escaliers mécaniques"
+             "Travaux de menuiserie et de charpenterie",
+             "Pose de portes et de fenêtres et d'éléments accessoires",
+             "Pose d'encadrements de portes et de fenêtres",
+             "Pose d'encadrements de portes",
+             "Pose d'encadrements de fenêtres",
+             "Pose de seuils",
+             "Poses de portes et de fenêtres",
+             "Pose de portes",
+             "Pose de fenêtres",
+             "Pose de menuiseries métalliques, excepté portes et fenêtres",
+             "Travaux de cloisonnement",
+             "Installation de volets",
+             "Travaux d'installation de stores",
+             "Travaux d'installation de vélums",
+             "Travaux d'installation de volets roulants",
+             "Serrurerie",
+             "Services de serrurerie",
+             "Menuiserie pour la construction",
+             "Travaux de menuiserie",
+             "Clôtures",
+             "Clôtures de protection",
+             "Travaux d'installation de clôtures, de garde-corps et de dispositifs de sécurité",
+             "Pose de clôtures",
+             "Ascenseurs, skips, monte-charges, escaliers mécaniques et trottoirs roulants",
+             "Escaliers mécaniques",
+             "Pièces pour ascenseurs, skips ou escaliers mécaniques",
+             "Pièces pour escaliers mécaniques",
+             "Escaliers",
+             "Escaliers pliants",
+             "Travaux d'installation d'ascenseurs et d'escaliers mécaniques",
+             "Travaux d'installation d'escaliers mécaniques",
+             "Services de réparation et d'entretien d'escaliers mécaniques",
+             "Services d'installation de matériel de levage et de manutention, excepté ascenseurs et escaliers mécaniques",
+             "45420000",
+                "45421100",
+                "45421110",
+                "45421111",
+                "45421112",
+                "45421120",
+                "45421130",
+                "45421131",
+                "45421132",
+                "45421140",
+                "45421141",
+                "45421142",
+                "45421143",
+                "45421144",
+                "45421145",
+                "44316500",
+                "98395000",
+                "44220000",
+                "45421000",
+                "34928200",
+                "34928310",
+                "45340000",
+                "45342000",
+                "42416000",
+                "42416400",
+                "42419500",
+                "42419530",
+                "44233000",
+                "44423220",
+                "45313000",
+                "45313200",
+                "50740000",
+                "51511000",
         ]
 
         # Keyword selection
@@ -327,7 +360,7 @@ def main():
                         with col2:
                             st.write(f"**Procedure:** {row.get('procedure_libelle', 'N/A')}")
                             st.write(f"**date limite reponse:** {row.get('datelimitereponse', 'N/A')}")
-                            st.write(f"**date limite reponse:** {row.get('datelimitereponse', 'N/A')}")
+                            st.write(f"**code de departement:** {row.get('code_departement', 'N/A')}")
             else:
                 st.warning("No records available to display.")
 
