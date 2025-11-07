@@ -4,10 +4,13 @@ import pandas as pd
 from datetime import datetime
 import json
 import io
+import openai
+import json
+from openai import OpenAI
 
 st.set_page_config(page_title="BOAMP Data Extractor", page_icon="📊", layout="wide")
 
-def get_all_records_for_date(target_date, max_records=5000):
+def get_all_records_for_date(target_date, max_records=10000):
     """Get all records for a specific date with all available fields"""
     url = "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/records"
     all_records = []
@@ -103,14 +106,14 @@ def main():
     st.sidebar.header("Configuration")
 
     # Date input
-    target_date = st.sidebar.date_input("Select target date", value=datetime(2025, 10, 31))
+    target_date = st.sidebar.date_input("Select target date", value=datetime.today())
     target_date_str = target_date.strftime('%Y-%m-%d')
 
     # Max records
-    max_records = st.sidebar.number_input("Maximum records", min_value=100, max_value=10000, value=5000)
+    max_records = st.sidebar.number_input("Maximum records", min_value=100, max_value=10000, value=10000)
 
     # Main content area
-    tab1, tab2, tab3 = st.tabs(["Data Extraction", "Keyword Filtering", "Results"])
+    tab1, tab2, tab3,tab4 = st.tabs(["Data Extraction", "Keyword Filtering", "Results", "AI Processing"])
 
     with tab1:
         st.header("Data Extraction")
@@ -154,39 +157,43 @@ def main():
         # Predefined keywords
         predefined_keywords = [
             "miroiterie", "métallerie", "menuiserie extérieure",
-            "45420000", "Travaux de menuiserie et de charpenterie",
-            "45421100", "Pose de portes et de fenêtres et d'éléments accessoires",
-            "45421110", "Pose d'encadrements de portes et de fenêtres",
-            "45421111", "Pose d'encadrements de portes",
-            "45421112", "Pose d'encadrements de fenêtres",
-            "45421120", "Pose de seuils",
-            "45421130", "Poses de portes et de fenêtres",
-            "45421131", "Pose de portes",
-            "45421132", "Pose de fenêtres",
-            "45421140", "Pose de menuiseries métalliques, excepté portes et fenêtres",
-            "45421141", "Travaux de cloisonnement",
-            "45421142", "Installation de volets",
-            "45421143", "Travaux d'installation de stores",
-            "45421144", "Travaux d'installation de vélums",
-            "45421145", "Travaux d'installation de volets roulants",
-            "44316500", "Serrurerie",
-            "98395000", "Services de serrurerie",
-            "44220000", "Menuiserie pour la construction",
-            "45421000", "Travaux de menuiserie",
-            "34928200", "Clôtures",
-            "34928310", "Clôtures de protection",
-            "45340000", "Travaux d'installation de clôtures, de garde-corps et de dispositifs de sécurité",
-            "45342000", "Pose de clôtures",
-            "42416000", "Ascenseurs, skips, monte-charges, escaliers mécaniques et trottoirs roulants",
-            "42416400", "Escaliers mécaniques",
-            "42419500", "Pièces pour ascenseurs, skips ou escaliers mécaniques",
-            "42419530", "Pièces pour escaliers mécaniques",
-            "44233000", "Escaliers",
-            "44423220", "Escaliers pliants",
-            "45313000", "Travaux d'installation d'ascenseurs et d'escaliers mécaniques",
-            "45313200", "Travaux d'installation d'escaliers mécaniques",
-            "50740000", "Services de réparation et d'entretien d'escaliers mécaniques",
-            "51511000", "Services d'installation de matériel de levage et de manutention, excepté ascenseurs et escaliers mécaniques"
+             "Travaux de menuiserie et de charpenterie",
+             "Pose de portes et de fenêtres et d'éléments accessoires",
+             "Pose d'encadrements de portes et de fenêtres",
+             "Pose d'encadrements de portes",
+             "Pose d'encadrements de fenêtres",
+             "Pose de seuils",
+             "Poses de portes et de fenêtres",
+             "Pose de portes",
+             "Pose de fenêtres",
+             "Pose de menuiseries métalliques, excepté portes et fenêtres",
+             "Travaux de cloisonnement",
+             "Installation de volets",
+             "Travaux d'installation de stores",
+             "Travaux d'installation de vélums",
+             "Travaux d'installation de volets roulants",
+             "Serrurerie",
+             "Services de serrurerie",
+             "Menuiserie pour la construction",
+             "Travaux de menuiserie",
+             "Clôtures",
+             "Clôtures de protection",
+             "Travaux d'installation de clôtures, de garde-corps et de dispositifs de sécurité",
+             "Pose de clôtures",
+             "Ascenseurs, skips, monte-charges, escaliers mécaniques et trottoirs roulants",
+             "Escaliers mécaniques",
+             "Pièces pour ascenseurs, skips ou escaliers mécaniques",
+             "Pièces pour escaliers mécaniques",
+             "Escaliers",
+             "Escaliers pliants",
+             "Travaux d'installation d'ascenseurs et d'escaliers mécaniques",
+             "Travaux d'installation d'escaliers mécaniques",
+             "Services de réparation et d'entretien d'escaliers mécaniques",
+             "Services d'installation de matériel de levage et de manutention, excepté ascenseurs et escaliers mécaniques",
+             "45420000","45421100","45421110","45421111","45421112","45421120","45421130","45421131","45421132","45421140",
+             "45421141","45421142","45421143","45421144","45421145","44316500","98395000","44220000","45421000","34928200",
+             "34928310","45340000","45342000","42416000","42416400","42419500","42419530","44233000","44423220","45313000",
+             "45313200","50740000","51511000",
         ]
 
         # Keyword selection
@@ -298,17 +305,190 @@ def main():
             })
             st.dataframe(columns_df, use_container_width=True)
             
-            # Sample data
-            st.subheader("Sample Data (First 3 Records)")
-            for i, record in enumerate(st.session_state.records[:-1], 1):
-                with st.expander(f"Record {i}"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**Title:** {record.get('objet', 'N/A')[:80]}...")
-                        st.write(f"**Buyer:** {record.get('nomacheteur', 'N/A')}")
-                    with col2:
-                        st.write(f"**Procedure:** {record.get('procedure_libelle', 'N/A')}")
-                        st.write(f"**Date:** {record.get('dateparution', 'N/A')}")
+            # Sample data - UPDATED TO SHOW FINAL TABLE RECORDS
+            st.subheader("Final Data Sample ")
+            
+            # Determine which dataset to show (priority: cleaned > filtered > raw)
+            if 'cleaned_df' in st.session_state:
+                display_df = st.session_state.cleaned_df
+                data_source = "Cleaned Data (After Deduplication)"
+            elif 'filtered_df' in st.session_state:
+                display_df = st.session_state.filtered_df
+                data_source = "Filtered Data"
+            else:
+                display_df = st.session_state.df
+                data_source = "Raw Data"
+            
+            st.info(f"Showing sample from: **{data_source}**")
+            
+            # Display sample records
+            if len(display_df) > 0:
+                for i, (index, row) in enumerate(display_df.head(-1).iterrows(), 1):
+                    with st.expander(f"Record {i} - ID: {row.get('id', 'N/A')}"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write(f"**Title:** {str(row.get('objet', 'N/A'))[:80]}...")
+                            st.write(f"**Buyer:** {row.get('nomacheteur', 'N/A')}")
+                            if 'keyword' in row:
+                                st.write(f"**Matched Keyword:** {row.get('keyword', 'N/A')}")
+                        with col2:
+                            st.write(f"**Procedure:** {row.get('procedure_libelle', 'N/A')}")
+                            st.write(f"**date limite reponse:** {row.get('datelimitereponse', 'N/A')}")
+                            st.write(f"**code de departement:** {row.get('code_departement', 'N/A')}")
+            else:
+                st.warning("No records available to display.")
+    # Add this with your other imports at the top
+
+
+# Add this in your main() function where tabs are defined - add "AI Processing" to your tabs
+
+# Add this entire section for the new tab
+    with tab4:
+        st.header("🤖 AI Data Processing")
+        st.markdown("Transform extracted data into readable JSON using OpenAI")
+        
+        # API key input
+        openai_api_key = st.text_input("OpenAI API Key", type="password", 
+                                    help="Enter your OpenAI API key to use this feature")
+        
+        if st.button("🪄 Process with AI", type="primary") and openai_api_key:
+            # Determine which dataset to use (priority: cleaned > filtered > raw)
+            if 'cleaned_df' in st.session_state:
+                processed_df = st.session_state.cleaned_df
+                data_source = "Cleaned Data"
+            elif 'filtered_df' in st.session_state:
+                processed_df = st.session_state.filtered_df
+                data_source = "Filtered Data"
+            elif 'df' in st.session_state:
+                processed_df = st.session_state.df
+                data_source = "Raw Data"
+            else:
+                st.error("❌ No data available. Please extract data first.")
+                processed_df = None
+            
+            if processed_df is not None:
+                st.info(f"Using: **{data_source}** ({len(processed_df)} records)")
+                
+                # Extract required columns
+                required_columns = ["gestion", "donnees"]
+                missing_columns = [col for col in required_columns if col not in processed_df.columns]
+                
+                if missing_columns:
+                    st.error(f"Missing required columns: {missing_columns}")
+                else:
+                    with st.spinner("AI is processing your data..."):
+                        try:
+                            # Prepare data for AI - process ALL rows
+                            extracted_data = processed_df[required_columns]
+                            
+                            # Initialize OpenAI client
+                            client = openai.OpenAI(api_key=openai_api_key)
+                            
+                            all_json_results = []
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            # Process each row individually
+                            for index, row in extracted_data.iterrows():
+                                status_text.text(f"Processing row {index + 1} of {len(extracted_data)}")
+                                progress_bar.progress((index + 1) / len(extracted_data))
+                                
+                                # Create row data for display
+                                row_data = {
+                                    "row_index": index,
+                                    "donnees": str(row['donnees'])
+                                }
+                                
+                                # Display which row is being processed
+                                with st.expander(f"📋 Row {index} sent to AI", expanded=False):
+                                    st.json(row_data)
+                                
+                                # Create prompt for OpenAI for this specific row
+                                prompt = f"""
+                                Convert this single data row into a well-structured, readable JSON format.
+                                Extract and organize information from these two fields:
+                                
+                                DONNEES: {row['donnees']}
+                                
+                                Create a JSON object that represents this single row with clear, organized structure.
+                                Make the data easily readable and well-formatted.
+                                If any field is empty or null, represent it appropriately in JSON.
+                                """
+                                
+                                # Call OpenAI API for this row
+                                response = client.chat.completions.create(
+                                    model="gpt-3.5-turbo",  # Fixed model name
+                                    messages=[
+                                        {"role": "system", "content": "You are a data processing expert that converts tabular data into clean JSON format."},
+                                        {"role": "user", "content": prompt}
+                                    ],
+                                    temperature=0.1
+                                )
+                                
+                                # Get and parse AI response
+                                ai_output = response.choices[0].message.content
+                                
+                                # Clean the response to extract JSON
+                                try:
+                                    if "```json" in ai_output:
+                                        json_str = ai_output.split("```json")[1].split("```")[0].strip()
+                                    elif "```" in ai_output:
+                                        json_str = ai_output.split("```")[1].split("```")[0].strip()
+                                    else:
+                                        json_str = ai_output.strip()
+                                    
+                                    row_json = json.loads(json_str)
+                                    # Add original row index to the JSON
+                                    row_json["original_row_index"] = index
+                                    all_json_results.append(row_json)
+                                    
+                                except json.JSONDecodeError:
+                                    st.error(f"❌ Row {index}: AI response contained invalid JSON")
+                                    st.text(f"AI Response for row {index}:")
+                                    st.text(ai_output)
+                                    # Add error info to results
+                                    all_json_results.append({
+                                        "original_row_index": index,
+                                        "error": "Failed to parse AI response",
+                                        "raw_ai_output": ai_output
+                                    })
+                            
+                            # Clear progress indicators
+                            progress_bar.empty()
+                            status_text.empty()
+                            
+                            # Display final results
+                            if all_json_results:
+                                st.success(f"✅ AI Processing Complete! Processed {len(all_json_results)} rows")
+                                
+                                st.subheader("Final Processed JSON Data")
+                                st.json(all_json_results)
+                                
+                                # Download button for all results
+                                json_string = json.dumps(all_json_results, indent=2, ensure_ascii=False)
+                                st.download_button(
+                                    label="📥 Download Complete JSON File",
+                                    data=json_string,
+                                    file_name=f"BOAMP_AI_processed_all_rows_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                    mime="application/json"
+                                )
+                                
+                                # Show summary
+                                st.subheader("Processing Summary")
+                                successful_rows = len([r for r in all_json_results if "error" not in r])
+                                failed_rows = len([r for r in all_json_results if "error" in r])
+                                
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.metric("Successfully Processed", successful_rows)
+                                with col2:
+                                    st.metric("Failed Rows", failed_rows)
+                                
+                        except Exception as e:
+                            st.error(f"❌ OpenAI API Error: {str(e)}")
+        
+        elif not openai_api_key:
+            st.warning("⚠️ Please enter your OpenAI API key to use this feature")
 
 if __name__ == "__main__":
     main()

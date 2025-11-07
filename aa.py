@@ -4,6 +4,9 @@ import pandas as pd
 from datetime import datetime
 import json
 import io
+import openai
+import json
+from openai import OpenAI
 
 st.set_page_config(page_title="BOAMP Data Extractor", page_icon="📊", layout="wide")
 
@@ -110,7 +113,7 @@ def main():
     max_records = st.sidebar.number_input("Maximum records", min_value=100, max_value=10000, value=10000)
 
     # Main content area
-    tab1, tab2, tab3 = st.tabs(["Data Extraction", "Keyword Filtering", "Results"])
+    tab1, tab2, tab3,tab4 = st.tabs(["Data Extraction", "Keyword Filtering", "Results", "AI Processing"])
 
     with tab1:
         st.header("Data Extraction")
@@ -187,39 +190,10 @@ def main():
              "Travaux d'installation d'escaliers mécaniques",
              "Services de réparation et d'entretien d'escaliers mécaniques",
              "Services d'installation de matériel de levage et de manutention, excepté ascenseurs et escaliers mécaniques",
-             "45420000",
-                "45421100",
-                "45421110",
-                "45421111",
-                "45421112",
-                "45421120",
-                "45421130",
-                "45421131",
-                "45421132",
-                "45421140",
-                "45421141",
-                "45421142",
-                "45421143",
-                "45421144",
-                "45421145",
-                "44316500",
-                "98395000",
-                "44220000",
-                "45421000",
-                "34928200",
-                "34928310",
-                "45340000",
-                "45342000",
-                "42416000",
-                "42416400",
-                "42419500",
-                "42419530",
-                "44233000",
-                "44423220",
-                "45313000",
-                "45313200",
-                "50740000",
-                "51511000",
+             "45420000","45421100","45421110","45421111","45421112","45421120","45421130","45421131","45421132","45421140",
+             "45421141","45421142","45421143","45421144","45421145","44316500","98395000","44220000","45421000","34928200",
+             "34928310","45340000","45342000","42416000","42416400","42419500","42419530","44233000","44423220","45313000",
+             "45313200","50740000","51511000",
         ]
 
         # Keyword selection
@@ -363,6 +337,186 @@ def main():
                             st.write(f"**code de departement:** {row.get('code_departement', 'N/A')}")
             else:
                 st.warning("No records available to display.")
+    # Add this with your other imports at the top
+
+
+# Add this in your main() function where tabs are defined - add "AI Processing" to your tabs
+
+# Add this entire section for the new tab
+    with tab4:
+        st.header("🤖 AI Data Processing")
+        st.markdown("Transform extracted data into readable JSON using OpenAI")
+        
+        # API key input
+        openai_api_key = st.text_input("OpenAI API Key", type="password", 
+                                    help="Enter your OpenAI API key to use this feature")
+        
+        if st.button("🪄 Process with AI", type="primary") and openai_api_key:
+            # Determine which dataset to use (priority: cleaned > filtered > raw)
+            if 'cleaned_df' in st.session_state:
+                processed_df = st.session_state.cleaned_df
+                data_source = "Cleaned Data"
+            elif 'filtered_df' in st.session_state:
+                processed_df = st.session_state.filtered_df
+                data_source = "Filtered Data"
+            elif 'df' in st.session_state:
+                processed_df = st.session_state.df
+                data_source = "Raw Data"
+            else:
+                st.error("❌ No data available. Please extract data first.")
+                processed_df = None
+            
+            if processed_df is not None:
+                st.info(f"Using: **{data_source}** ({len(processed_df)} records)")
+                
+                # Extract required columns
+                required_columns = [ "donnees"]
+                missing_columns = [col for col in required_columns if col not in processed_df.columns]
+                
+                if missing_columns:
+                    st.error(f"Missing required columns: {missing_columns}")
+                else:
+                    with st.spinner("AI is processing your data in chunks..."):
+                        try:
+                            # Prepare data for AI - process ALL rows
+                            extracted_data = processed_df[required_columns]
+                            
+                            # Initialize OpenAI client
+                            client = openai.OpenAI(api_key=openai_api_key)
+                            
+                            all_json_results = []
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            # Calculate chunk size (process multiple rows per API call but not too many)
+                            total_rows = len(extracted_data)
+                            chunk_size = 5  # Process 5 rows per API call to balance efficiency and token limits
+                            
+                            # Process data in chunks
+                            for chunk_start in range(0, total_rows, chunk_size):
+                                chunk_end = min(chunk_start + chunk_size, total_rows)
+                                chunk_data = extracted_data.iloc[chunk_start:chunk_end]
+                                
+                                status_text.text(f"Processing chunk {chunk_start//chunk_size + 1}/{(total_rows-1)//chunk_size + 1} (rows {chunk_start+1}-{chunk_end})")
+                                progress_bar.progress(chunk_end / total_rows)
+                                
+                                # Display which rows are being processed in this chunk
+                                with st.expander(f"📋 Chunk {chunk_start//chunk_size + 1}: Rows {chunk_start+1} to {chunk_end}", expanded=False):
+                                    for i, (index, row) in enumerate(chunk_data.iterrows(), chunk_start+1):
+                                        row_data = {
+                                            "row_index": index,
+                                            "donnees": str(row['donnees'])[:500] + "..." if len(str(row['donnees'])) > 500 else str(row['donnees'])
+                                        }
+                                        st.write(f"**Row {i}:**")
+                                        st.json(row_data)
+                                
+                                # Create prompt for this chunk
+                                chunk_rows = []
+                                for index, row in chunk_data.iterrows():
+                                    chunk_rows.append({
+                                        "row_index": index,
+                                        "donnees": str(row['donnees'])
+                                    })
+                                
+                                prompt = f"""
+                                Convert this batch of {len(chunk_rows)} data rows into a well-structured, readable JSON format.
+                                Extract and organize information from these two fields for each row: gestion and donnees.
+                                
+                                Data to process:
+                                {json.dumps(chunk_rows, indent=2, ensure_ascii=False)}
+                                
+                                Create a JSON array where each element is an object representing one row.
+                                Each object should have:
+                                - original_row_index: the original index from the data
+                                - donnees: the processed and organized donnees data
+                                
+                                Make the data easily readable and well-formatted. If any field is empty or null, represent it as null in JSON.
+                                Return ONLY valid JSON, no additional text.
+                                """
+                                
+                                # Call OpenAI API for this chunk
+                                response = client.chat.completions.create(
+                                    model="gpt-5",
+                                    messages=[
+                                        {"role": "system", "content": "You are a data processing expert that converts tabular data into clean JSON format. Always return valid JSON."},
+                                        {"role": "user", "content": prompt}
+                                    ],
+                                    temperature=0.1,
+                                    max_tokens=4000  # Limit tokens to avoid exceeding limits
+                                )
+                                
+                                # Get and parse AI response
+                                ai_output = response.choices[0].message.content
+                                
+                                # Clean the response to extract JSON
+                                try:
+                                    if "```json" in ai_output:
+                                        json_str = ai_output.split("```json")[1].split("```")[0].strip()
+                                    elif "```" in ai_output:
+                                        json_str = ai_output.split("```")[1].split("```")[0].strip()
+                                    else:
+                                        json_str = ai_output.strip()
+                                    
+                                    chunk_json = json.loads(json_str)
+                                    
+                                    # Ensure it's a list and add to results
+                                    if isinstance(chunk_json, list):
+                                        all_json_results.extend(chunk_json)
+                                    else:
+                                        all_json_results.append(chunk_json)
+                                    
+                                    st.success(f"✅ Chunk {chunk_start//chunk_size + 1} processed successfully")
+                                    
+                                except json.JSONDecodeError:
+                                    st.error(f"❌ Chunk {chunk_start//chunk_size + 1}: AI response contained invalid JSON")
+                                    st.text("AI Response:")
+                                    st.text(ai_output)
+                                    # Add error info to results
+                                    for index, row in chunk_data.iterrows():
+                                        all_json_results.append({
+                                            "original_row_index": index,
+                                            "error": "Failed to parse AI response for this chunk",
+                                            "raw_data": {
+                                                "donnees": str(row['donnees'])
+                                            }
+                                        })
+                            
+                            # Clear progress indicators
+                            progress_bar.empty()
+                            status_text.empty()
+                            
+                            # Display final results
+                            if all_json_results:
+                                st.success(f"✅ AI Processing Complete! Processed {len(all_json_results)} rows in {((total_rows-1)//chunk_size + 1)} chunks")
+                                
+                                st.subheader("Final Processed JSON Data")
+                                st.json(all_json_results)
+                                
+                                # Download button for all results
+                                json_string = json.dumps(all_json_results, indent=2, ensure_ascii=False)
+                                st.download_button(
+                                    label="📥 Download Complete JSON File",
+                                    data=json_string,
+                                    file_name=f"BOAMP_AI_processed_all_rows_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                    mime="application/json"
+                                )
+                                
+                                # Show summary
+                                st.subheader("Processing Summary")
+                                successful_rows = len([r for r in all_json_results if "error" not in r])
+                                failed_rows = len([r for r in all_json_results if "error" in r])
+                                
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.metric("Successfully Processed", successful_rows)
+                                with col2:
+                                    st.metric("Failed Rows", failed_rows)
+                                
+                        except Exception as e:
+                            st.error(f"❌ OpenAI API Error: {str(e)}")
+        
+        elif not openai_api_key:
+            st.warning("⚠️ Please enter your OpenAI API key to use this feature")
 
 if __name__ == "__main__":
     main()
