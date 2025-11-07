@@ -273,7 +273,8 @@ def main():
             else:
                 st.warning("Please select at least one keyword.")
 
-        # Deduplication
+
+            
         if 'filtered_df' in st.session_state:
             st.subheader("Remove Duplicates")
             id_column = st.selectbox(
@@ -282,12 +283,41 @@ def main():
                 index=0
             )
             
+            # Let user select the keyword column (assuming it's the last column by default)
+            keyword_column = st.selectbox(
+                "Select keyword column:",
+                options=st.session_state.filtered_df.columns.tolist(),
+                index=len(st.session_state.filtered_df.columns.tolist()) - 1  # Default to last column
+            )
+            
             if st.button("🧹 Remove Duplicates"):
-                df_clean = st.session_state.filtered_df.drop_duplicates(subset=[id_column], keep='first')
+                # Create a copy to avoid modifying the original during processing
+                df = st.session_state.filtered_df.copy()
+                
+                # Group by ID and combine keywords
+                def combine_keywords(group):
+                    if len(group) > 1:
+                        # Combine keywords from all rows with the same ID
+                        combined_keywords = '; '.join(str(keyword) for keyword in group[keyword_column] if pd.notna(keyword) and str(keyword).strip())
+                        # Keep the first row but update the keyword column with combined values
+                        first_row = group.iloc[0].copy()
+                        first_row[keyword_column] = combined_keywords
+                        return first_row
+                    else:
+                        return group.iloc[0]
+                
+                # Apply the combination logic
+                df_clean = df.groupby(id_column).apply(combine_keywords).reset_index(drop=True)
+                
                 st.session_state.cleaned_df = df_clean
                 
                 st.success(f"✅ Removed duplicates! Kept {len(df_clean)} unique rows out of {len(st.session_state.filtered_df)} total.")
                 
+                # Show some combined keywords as examples
+                duplicate_ids = df[df.duplicated(subset=[id_column], keep=False)][id_column].unique()
+                if len(duplicate_ids) > 0:
+                    st.info(f"Found {len(duplicate_ids)} IDs with duplicates. Keywords have been combined.")
+                    
                 # Download button for cleaned data
                 excel_buffer = io.BytesIO()
                 df_clean.to_excel(excel_buffer, index=False, engine='openpyxl')
@@ -363,6 +393,9 @@ def main():
                             st.write(f"**code de departement:** {row.get('code_departement', 'N/A')}")
             else:
                 st.warning("No records available to display.")
+
+
+
 
 if __name__ == "__main__":
     main()
