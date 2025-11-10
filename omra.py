@@ -251,6 +251,22 @@ def main():
     st.title("📊 BOAMP Data Extractor")
     st.markdown("Extract public procurement data from BOAMP API")
 
+    # Initialize session state variables with proper defaults
+    if 'df' not in st.session_state:
+        st.session_state.df = None
+    if 'filtered_df' not in st.session_state:
+        st.session_state.filtered_df = None
+    if 'cleaned_df' not in st.session_state:
+        st.session_state.cleaned_df = None
+    if 'processed_df' not in st.session_state:
+        st.session_state.processed_df = None
+    if 'uploaded_df' not in st.session_state:
+        st.session_state.uploaded_df = None
+    if 'records' not in st.session_state:
+        st.session_state.records = None
+    if 'target_date' not in st.session_state:
+        st.session_state.target_date = None
+
     # Sidebar for configuration
     st.sidebar.header("Configuration")
 
@@ -262,7 +278,7 @@ def main():
     max_records = st.sidebar.number_input("Maximum records", min_value=100, max_value=10000, value=10000)
 
     # Main content area
-    tab1,  tab3,tab4, tab5, tab6 = st.tabs(["Data Extraction", "Results","📤 Upload File", "🔗 Process PDFs", "📊 Results & Download"])
+    tab1, tab3, tab4, tab5, tab6 = st.tabs(["Data Extraction", "Results", "📤 Upload File", "🔗 Process PDFs", "📊 Results & Download"])
 
     with tab1:
         st.header("Data Extraction")
@@ -291,6 +307,12 @@ def main():
                 df.to_excel(excel_buffer, index=False, engine='openpyxl')
                 excel_buffer.seek(0)
                 
+                st.download_button(
+                    label="📥 Download Raw Data Excel",
+                    data=excel_buffer,
+                    file_name=f"BOAMP_{target_date_str}_raw_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
             else:
                 st.error("❌ No records found for the specified date.")
@@ -389,7 +411,7 @@ def main():
             custom_keywords = [k.strip() for k in custom_keywords_text.split('\n') if k.strip()]
             all_keywords.extend(custom_keywords)
 
-        if st.button("🔍 Apply Keyword Filter", type="primary") and 'df' in st.session_state:
+        if st.button("🔍 Apply Keyword Filter", type="primary") and st.session_state.df is not None:
             if all_keywords:
                 with st.spinner("Filtering data by keywords..."):
                     filtered_df = filter_by_keywords(st.session_state.df, all_keywords)
@@ -414,25 +436,31 @@ def main():
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                 else:
+                    st.session_state.filtered_df = None  # Reset to None if no matches
                     st.warning("⚠️ No matches found for the selected keywords.")
             else:
                 st.warning("Please select at least one keyword.")
 
 
             
-        if 'filtered_df' in st.session_state:
+        # Only show duplicate removal if we have a valid filtered_df
+        if st.session_state.filtered_df is not None and not st.session_state.filtered_df.empty:
             st.subheader("Remove Duplicates")
+            
+            # Safely get column options
+            available_columns = st.session_state.filtered_df.columns.tolist()
+            
             id_column = st.selectbox(
                 "Select ID column for deduplication:",
-                options=st.session_state.filtered_df.columns.tolist(),
+                options=available_columns,
                 index=0
             )
             
             # Let user select the keyword column (assuming it's the last column by default)
             keyword_column = st.selectbox(
                 "Select keyword column:",
-                options=st.session_state.filtered_df.columns.tolist(),
-                index=len(st.session_state.filtered_df.columns.tolist()) - 1  # Default to last column
+                options=available_columns,
+                index=len(available_columns) - 1  # Default to last column
             )
             
             if st.button("🧹 Remove Duplicates"):
@@ -474,65 +502,194 @@ def main():
                     file_name=f"BOAMP_{st.session_state.target_date}_cleaned_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+        elif st.session_state.filtered_df is not None and st.session_state.filtered_df.empty:
+            st.info("No filtered data available for duplicate removal.")
                         
 
+    with tab3:
+        st.header("Results Summary")
+        
+        if st.session_state.df is not None:
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Total Records", len(st.session_state.df))
+                st.metric("Total Columns", len(st.session_state.df.columns))
+            
+            with col2:
+                if st.session_state.filtered_df is not None:
+                    st.metric("Filtered Records", len(st.session_state.filtered_df))
+                else:
+                    st.metric("Filtered Records", "Not filtered")
+            
+            with col3:
+                if st.session_state.cleaned_df is not None:
+                    st.metric("Unique Records", len(st.session_state.cleaned_df))
+                else:
+                    st.metric("Unique Records", "Not cleaned")
+            
+            # Column information
+            st.subheader("Data Columns")
+            columns_df = pd.DataFrame({
+                'Column Name': st.session_state.df.columns.tolist(),
+                'Data Type': st.session_state.df.dtypes.astype(str).tolist(),
+                'Non-Null Count': st.session_state.df.notna().sum().tolist()
+            })
+            st.dataframe(columns_df, use_container_width=True)
+            
+            # Sample data - UPDATED TO SHOW FINAL TABLE RECORDS
+            st.subheader("Final Data Sample ")
+            
+            # Determine which dataset to show (priority: cleaned > filtered > raw)
+            if st.session_state.cleaned_df is not None:
+                display_df = st.session_state.cleaned_df
+                data_source = "Cleaned Data (After Deduplication)"
+            elif st.session_state.filtered_df is not None:
+                display_df = st.session_state.filtered_df
+                data_source = "Filtered Data"
+            else:
+                display_df = st.session_state.df
+                data_source = "Raw Data"
+            
+            st.info(f"Showing sample from: **{data_source}**")
+            
+            # Display sample records
+            if len(display_df) > 0:
+                for i, (index, row) in enumerate(display_df.head(-1).iterrows(), 1):
+                    with st.expander(f"Record {i} - ID: {row.get('id', 'N/A')}"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write(f"**Title:** {str(row.get('objet', 'N/A'))[:80]}...")
+                            st.write(f"**Buyer:** {row.get('nomacheteur', 'N/A')}")
+                            if 'keyword' in row:
+                                st.write(f"**Matched Keyword:** {row.get('keyword', 'N/A')}")
+                        with col2:
+                            st.write(f"**Procedure:** {row.get('procedure_libelle', 'N/A')}")
+                            st.write(f"**date limite reponse:** {row.get('datelimitereponse', 'N/A')}")
+                            st.write(f"**code de departement:** {row.get('code_departement', 'N/A')}")
+            else:
+                st.warning("No records available to display.")
+        else:
+            st.info("No data extracted yet. Please use the Data Extraction tab first.")
 
     with tab4:
-        st.header("Upload Excel File")
+        st.header("Upload Excel File or Use Processed Data")
         st.info("""
-        **Required columns in your Excel file:**
-        - `dateparution`: Publication date (YYYY-MM-DD format)
-        - `idweb`: Unique identifier for each record
+        **You have two options:**
+        1. **Upload an Excel file** - Use your own Excel file with required columns
+        2. **Use processed data** - Use the cleaned data from the Data Extraction tab
         """)
         
-        uploaded_file = st.file_uploader(
-            "Choose an Excel file", 
-            type=['xlsx', 'xls'],
-            help="Upload an Excel file containing BOAMP data with required columns"
+        # Option selection
+        data_source = st.radio(
+            "Select data source:",
+            ["Upload Excel File", "Use Processed Data from Extraction Tab"],
+            help="Choose where to get the data for PDF processing"
         )
         
-        if uploaded_file is not None:
-            try:
-                # Read the Excel file
-                df = pd.read_excel(uploaded_file)
+        if data_source == "Upload Excel File":
+            st.info("""
+            **Required columns in your Excel file:**
+            - `dateparution`: Publication date (YYYY-MM-DD format)
+            - `idweb`: Unique identifier for each record
+            """)
+            
+            uploaded_file = st.file_uploader(
+                "Choose an Excel file", 
+                type=['xlsx', 'xls'],
+                help="Upload an Excel file containing BOAMP data with required columns"
+            )
+            
+            if uploaded_file is not None:
+                try:
+                    # Read the Excel file
+                    df = pd.read_excel(uploaded_file)
+                    st.session_state.uploaded_df = df
+                    
+                    # Validate the DataFrame
+                    is_valid, message = validate_dataframe(df)
+                    
+                    if is_valid:
+                        st.success(f"✅ File uploaded successfully! Found {len(df)} records.")
+                        
+                        # Show preview
+                        st.subheader("Data Preview")
+                        st.dataframe(df.head(), use_container_width=True)
+                        
+                        # Show basic statistics
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Total Records", len(df))
+                        with col2:
+                            st.metric("Columns", len(df.columns))
+                        with col3:
+                            st.metric("Memory Usage", f"{df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB")
+                        
+                        # Show column information
+                        with st.expander("📋 Column Details"):
+                            columns_info = pd.DataFrame({
+                                'Column Name': df.columns.tolist(),
+                                'Data Type': df.dtypes.astype(str).tolist(),
+                                'Non-Null Count': df.notna().sum().tolist(),
+                                'Null Count': df.isna().sum().tolist()
+                            })
+                            st.dataframe(columns_info, use_container_width=True)
+                            
+                    else:
+                        st.error(f"❌ {message}")
+                        st.stop()
+                        
+                except Exception as e:
+                    st.error(f"Error reading file: {str(e)}")
+                    st.stop()
+        
+        else:  # Use Processed Data
+            if st.session_state.cleaned_df is not None:
+                df = st.session_state.cleaned_df
                 st.session_state.uploaded_df = df
                 
-                # Validate the DataFrame
-                is_valid, message = validate_dataframe(df)
+                st.success(f"✅ Using cleaned data from extraction tab! Found {len(df)} records.")
                 
-                if is_valid:
-                    st.success(f"✅ File uploaded successfully! Found {len(df)} records.")
+                # Show preview
+                st.subheader("Data Preview")
+                st.dataframe(df.head(), use_container_width=True)
+                
+                # Show basic statistics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Records", len(df))
+                with col2:
+                    st.metric("Columns", len(df.columns))
+                with col3:
+                    st.metric("Memory Usage", f"{df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB")
+                
+                # Show column information
+                with st.expander("📋 Column Details"):
+                    columns_info = pd.DataFrame({
+                        'Column Name': df.columns.tolist(),
+                        'Data Type': df.dtypes.astype(str).tolist(),
+                        'Non-Null Count': df.notna().sum().tolist(),
+                        'Null Count': df.isna().sum().tolist()
+                    })
+                    st.dataframe(columns_info, use_container_width=True)
                     
-                    # Show preview
-                    st.subheader("Data Preview")
-                    st.dataframe(df.head(), use_container_width=True)
-                    
-                    # Show basic statistics
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Total Records", len(df))
-                    with col2:
-                        st.metric("Columns", len(df.columns))
-                    with col3:
-                        st.metric("Memory Usage", f"{df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB")
-                    
-                    # Show column information
-                    with st.expander("📋 Column Details"):
-                        columns_info = pd.DataFrame({
-                            'Column Name': df.columns.tolist(),
-                            'Data Type': df.dtypes.astype(str).tolist(),
-                            'Non-Null Count': df.notna().sum().tolist(),
-                            'Null Count': df.isna().sum().tolist()
-                        })
-                        st.dataframe(columns_info, use_container_width=True)
-                        
+                # Show which data source is being used
+                if st.session_state.filtered_df is not None and len(df) == len(st.session_state.filtered_df):
+                    st.info("📝 Currently using filtered data (before deduplication)")
                 else:
-                    st.error(f"❌ {message}")
-                    st.stop()
+                    st.info("🧹 Currently using cleaned data (after deduplication)")
                     
-            except Exception as e:
-                st.error(f"Error reading file: {str(e)}")
-                st.stop()
+            else:
+                st.warning("""
+                ⚠️ No processed data available from the extraction tab. 
+                
+                Please go to the **Data Extraction** tab first and:
+                1. Extract data for a specific date
+                2. Apply keyword filtering (optional)
+                3. Remove duplicates (optional)
+                
+                Then return here to use the processed data for PDF extraction.
+                """)
     
     with tab5:
         st.header("Process PDF Content")
@@ -590,7 +747,7 @@ def main():
                     st.metric("Skipped", skipped)
         
         else:
-            st.warning("⚠️ Please upload an Excel file first in the 'Upload File' tab.")
+            st.warning("⚠️ Please select a data source first in the 'Upload File' tab.")
     
     with tab6:
         st.header("Results & Download")
@@ -715,8 +872,6 @@ def main():
         
         else:
             st.info("👆 Process your PDFs in the 'Process PDFs' tab to see results and download options.")
-
-                
 
 if __name__ == "__main__":
     main()

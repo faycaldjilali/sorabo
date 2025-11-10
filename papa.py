@@ -8,7 +8,6 @@ import tempfile
 import os
 import PyPDF2
 import time
-import re
 
 # Initialize session state variables
 def initialize_session_state():
@@ -116,137 +115,13 @@ def filter_by_keywords(df, keywords):
 
     return all_matches
 
-def clean_lot_numbers(lot_numbers_str):
-    """
-    Clean lot numbers - keep only those in format 'lot-xxxx' and remove others
-    """
-    if not lot_numbers_str or pd.isna(lot_numbers_str) or lot_numbers_str == '':
-        return ""
-    
-    # Split by comma to handle multiple lot numbers
-    lots = [lot.strip() for lot in str(lot_numbers_str).split(',')]
-    
-    # Filter only lot numbers that match the pattern 'lot-xxxx'
-    valid_lots = []
-    for lot in lots:
-        # Check if lot matches the pattern 'lot-xxxx' where xxxx can be numbers, letters, or combination
-        if re.match(r'^lot-\w+$', lot, re.IGNORECASE):
-            valid_lots.append(lot)
-    
-    return ', '.join(valid_lots) if valid_lots else ""
-
-def clean_existing_lot_numbers(df):
-    """
-    Clean lot numbers in an existing DataFrame
-    """
-    if 'lot_numbers' in df.columns:
-        df['lot_numbers'] = df['lot_numbers'].apply(clean_lot_numbers)
-    return df
-
-def search_keywords_and_find_lot(text, keywords):
-    """
-    Search for keywords in PDF text and find ALL lot numbers that appear before them
-    """
-    try:
-        results = []
-        
-        # Search for each keyword
-        for keyword in keywords:
-            # Find all occurrences of the keyword
-            keyword_matches = list(re.finditer(re.escape(keyword), text, re.IGNORECASE))
-            
-            for match in keyword_matches:
-                keyword_position = match.start()
-                
-                # Extract more text before the keyword (look back up to 500 characters)
-                text_before = text[max(0, keyword_position - 1000):keyword_position]
-                
-                # Improved lot pattern to catch more formats
-                lot_patterns = [
-                    r'(lot|LOT)\s*[:\-\s]*\s*(\d+[-\w]*)',  # lot: 123, LOT-456, lot 789
-                    r'(Lot\s*\d+)',  # Lot 123
-                    r'(lot\s*\d+)',  # lot 123
-                    r'\b(\d+)\s*-\s*Lot',  # 123 - Lot
-                    r'\b(LOT\s*[A-Z]*\d+)',  # LOT A123, LOT 456
-                ]
-                
-                all_lot_matches = []
-                
-                for pattern in lot_patterns:
-                    matches = re.findall(pattern, text_before, re.IGNORECASE)
-                    for match_tuple in matches:
-                        if isinstance(match_tuple, tuple):
-                            # For patterns that capture groups
-                            lot_number = match_tuple[1] if len(match_tuple) > 1 else match_tuple[0]
-                        else:
-                            # For patterns that capture directly
-                            lot_number = match_tuple
-                        
-                        # Clean up the lot number
-                        lot_number = re.sub(r'^(lot|LOT)\s*', '', lot_number, flags=re.IGNORECASE)
-                        lot_number = lot_number.strip(' :-\t')
-                        
-                        if lot_number and lot_number not in [lm[0] for lm in all_lot_matches]:
-                            all_lot_matches.append((lot_number, pattern))
-                
-                # Remove duplicates while preserving order
-                unique_lots = []
-                seen = set()
-                for lot_num, pattern in all_lot_matches:
-                    if lot_num not in seen:
-                        seen.add(lot_num)
-                        unique_lots.append(lot_num)
-                
-                if unique_lots:
-                    for lot_number in unique_lots:
-                        results.append({
-                            'keyword': keyword,
-                            'lot_number': lot_number
-                        })
-        
-        return results
-            
-    except Exception as e:
-        return []
-
-def check_visite_obligatoire(text, keywords):
-    """
-    Search for keywords in PDF text and check if 'visite' appears before them
-    """
-    try:
-        # Search for each keyword
-        for keyword in keywords:
-            # Find all occurrences of the keyword
-            keyword_matches = list(re.finditer(re.escape(keyword), text, re.IGNORECASE))
-            
-            for match in keyword_matches:
-                keyword_position = match.start()
-                
-                # Extract text before the keyword (look back up to 500 characters)
-                text_before = text[max(0, keyword_position - 500):keyword_position]
-                
-                # Check if "visite" appears before the keyword
-                visite_patterns = [r"visites", r"visite"]
-                
-                for pattern in visite_patterns:
-                    if re.search(pattern, text_before, re.IGNORECASE):
-                        return "yes"
-        
-        return "no"
-            
-    except Exception as e:
-        return "no"
-
 def extract_pdf_content(df):
-    """Extract PDF content and analyze for lots and visite information"""
+    """Extract PDF content for each record in the DataFrame"""
     df_with_pdf = df.copy()
     df_with_pdf['generated_link'] = ""
     df_with_pdf['pdf_content'] = ""
     df_with_pdf['pdf_status'] = ""
     df_with_pdf['pages_extracted'] = 0
-    df_with_pdf['lot_numbers'] = ""
-    df_with_pdf['visite_obligatoire'] = ""
-    df_with_pdf['keywords_used'] = ""
     
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -261,7 +136,6 @@ def extract_pdf_content(df):
     for index, row in df_with_pdf.iterrows():
         dateparution_str = row.get('dateparution')
         idweb = row.get('idweb', 'N/A')
-        keywords_from_row = row.get('keyword', '')
         
         # Update progress
         progress = (index + 1) / total_records
@@ -297,9 +171,6 @@ def extract_pdf_content(df):
             # Add link to DataFrame
             df_with_pdf.at[index, 'generated_link'] = link
             
-            # Store keywords used for this row
-            df_with_pdf.at[index, 'keywords_used'] = str(keywords_from_row)
-            
             # Download and extract PDF content
             try:
                 # Download the PDF
@@ -325,31 +196,6 @@ def extract_pdf_content(df):
                     df_with_pdf.at[index, 'pdf_content'] = full_text
                     df_with_pdf.at[index, 'pages_extracted'] = len(pdf_reader.pages)
                     df_with_pdf.at[index, 'pdf_status'] = "Success"
-                    
-                    # Extract keywords from the row (could be string or list)
-                    if isinstance(keywords_from_row, str):
-                        # Split by semicolon if it's a combined string from deduplication
-                        search_keywords = [k.strip() for k in keywords_from_row.split(';') if k.strip()]
-                    else:
-                        search_keywords = [str(keywords_from_row)]
-                    
-                    # Search for lot numbers
-                    lot_results = search_keywords_and_find_lot(full_text, search_keywords)
-                    if lot_results:
-                        unique_lots = set()
-                        for result in lot_results:
-                            unique_lots.add(f"lot-{result['lot_number']}")
-                        
-                        # Clean lot numbers - keep only valid format
-                        raw_lot_numbers = ', '.join(sorted(unique_lots))
-                        cleaned_lot_numbers = clean_lot_numbers(raw_lot_numbers)
-                        df_with_pdf.at[index, 'lot_numbers'] = cleaned_lot_numbers
-                    
-                    # Check for visite obligatoire
-                    visite_keywords = ["obligatoires", "obligatoire"]
-                    visite_result = check_visite_obligatoire(full_text, visite_keywords)
-                    df_with_pdf.at[index, 'visite_obligatoire'] = visite_result
-                    
                     successful += 1
                 
                 # Clean up
@@ -360,8 +206,6 @@ def extract_pdf_content(df):
                     'ID': idweb,
                     'Status': '✅ Success',
                     'Pages': len(pdf_reader.pages),
-                    'Lots Found': df_with_pdf.at[index, 'lot_numbers'] or 'None',
-                    'Visite': df_with_pdf.at[index, 'visite_obligatoire'],
                     'Link': link
                 })
                 
@@ -375,8 +219,6 @@ def extract_pdf_content(df):
                     'ID': idweb,
                     'Status': '❌ Error',
                     'Pages': 0,
-                    'Lots Found': 'N/A',
-                    'Visite': 'N/A',
                     'Link': link
                 })
             
@@ -398,16 +240,13 @@ def extract_pdf_content(df):
                 st.dataframe(results_df, use_container_width=True)
                 
                 # Show summary
-                col1, col2, col3, col4 = st.columns(4)
+                col1, col2, col3 = st.columns(3)
                 with col1:
                     st.metric("Processed", f"{index + 1}/{total_records}")
                 with col2:
                     st.metric("Successful", successful)
                 with col3:
                     st.metric("Errors", errors)
-                with col4:
-                    lots_found = len([r for r in results_data if r['Lots Found'] != 'None' and r['Lots Found'] != 'N/A'])
-                    st.metric("Lots Found", lots_found)
     
     progress_bar.empty()
     status_text.empty()
@@ -658,8 +497,8 @@ def render_results_tab():
                 "keywods": table_df.get('keyword', 'N/A'),
                 'IDENTIFICATION ACHETEUR': table_df.get('nomacheteur', 'N/A'),
                 'OBJET CONSULTATION': table_df.get('objet', 'N/A'),
-                'LOTS D\'INTÉRÊT': table_df.get('objet', 'N/A'),  # You may need to calculate this
-                'VISITE DE SITE': table_df.get('objet', 'N/A'),  # You may need to extract this from your data
+                'LOTS D\'INTÉRÊT': 'Non mentionnée',  # You may need to calculate this
+                'VISITE DE SITE': 'Non mentionnée',  # You may need to extract this from your data
                 'DATE LIMITE': table_df.get('datelimitereponse', 'Pas Mentionné'),
             })
             
@@ -801,7 +640,7 @@ def render_results_download_tab():
         # Summary statistics
         st.subheader("Processing Summary")
         
-        col1, col2, col3, col4, col5 = st.columns(5)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             successful = processed_df[processed_df['pdf_status'] == 'Success'].shape[0]
             st.metric("Successful Extractions", successful)
@@ -814,46 +653,15 @@ def render_results_download_tab():
         with col4:
             total_pages = processed_df['pages_extracted'].sum()
             st.metric("Total Pages", total_pages)
-        with col5:
-            lots_found = processed_df[processed_df['lot_numbers'] != ''].shape[0]
-            st.metric("Lots Found", lots_found)
-        
-        # Add cleaning option
-        if st.button("🧹 Clean Lot Numbers"):
-            processed_df = clean_existing_lot_numbers(processed_df)
-            st.session_state.processed_df = processed_df
-            st.success("✅ Lot numbers cleaned!")
         
         # Show sample of processed data
         st.subheader("Processed Data Preview")
         
         # Select columns to display
-        display_columns = [ 'objet', 'keyword', 'lot_numbers', 'visite_obligatoire','code_departement','datelimitereponse','nomacheteur']
+        display_columns = ['idweb', 'objet', 'generated_link', 'pdf_status', 'pages_extracted']
         available_columns = [col for col in display_columns if col in processed_df.columns]
         
         st.dataframe(processed_df[available_columns].head(10), use_container_width=True)
-        
-        # Lots and Visite Analysis
-        st.subheader("Lots and Visite Analysis")
-        
-        if 'lot_numbers' in processed_df.columns and 'visite_obligatoire' in processed_df.columns:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Lots analysis
-                lots_data = processed_df[processed_df['lot_numbers'] != '']
-                st.metric("Records with Lots Found", len(lots_data))
-                if len(lots_data) > 0:
-                    with st.expander("View Records with Lots"):
-                        st.dataframe(lots_data[['idweb', 'objet', 'keyword', 'lot_numbers']], use_container_width=True)
-            
-            with col2:
-                # Visite analysis
-                visite_data = processed_df[processed_df['visite_obligatoire'] == 'yes']
-                st.metric("Records with Visite Obligatoire", len(visite_data))
-                if len(visite_data) > 0:
-                    with st.expander("View Records with Visite Obligatoire"):
-                        st.dataframe(visite_data[[ 'objet', 'keyword', 'visite_obligatoire']], use_container_width=True)
         
         # PDF Content Samples
         st.subheader("PDF Content Samples")
@@ -861,22 +669,19 @@ def render_results_download_tab():
         successful_records = processed_df[processed_df['pdf_status'] == 'Success']
         
         if len(successful_records) > 0:
-            for i, (index, row) in enumerate(successful_records.head(-1).iterrows(), 1):
-                with st.expander(f"Sample {i} - objet: {row.get('objet', 'N/A')} - Lots: {row.get('lot_numbers', 'None')} - Visite: {row.get('visite_obligatoire', 'no')}"):
-                    st.write(f"**pdf link ** [{row.get('generated_link', 'N/A')}]({row.get('generated_link', '')})")
-                    st.write(f"**nom d achteur:** {row.get('objet', 'N/A')}")
-                    st.write(f"**Keywords Used:** {row.get('keywords_used', 'N/A')}")
-                    st.write(f"**Lots Found:** {row.get('lot_numbers', 'None')}")
-                    st.write(f"**Visite Obligatoire:** {row.get('visite_obligatoire', 'no')}")
+            for i, (index, row) in enumerate(successful_records.head(3).iterrows(), 1):
+                with st.expander(f"Sample {i} - ID: {row.get('idweb', 'N/A')} ({row.get('pages_extracted', 0)} pages)"):
+                    st.write(f"**Generated Link:** [{row.get('generated_link', 'N/A')}]({row.get('generated_link', '')})")
+                    st.write(f"**Object:** {row.get('objet', 'N/A')}")
                     st.write("**PDF Content Preview:**")
                     pdf_content = row.get('pdf_content', '')
                     if pdf_content:
                         # Show first 5000 characters
-                        preview = pdf_content[:5000] + "..." if len(pdf_content) > 5000 else pdf_content
+                        preview = pdf_content[:-5000] + "..." if len(pdf_content) > 5000 else pdf_content
                         st.text_area(
                             f"Content Preview {i}",
                             preview,
-                            height=300,
+                            height=500,
                             key=f"preview_{i}"
                         )
         else:
