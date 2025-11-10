@@ -919,7 +919,7 @@ def main():
     max_records = st.sidebar.number_input("Maximum records", min_value=100, max_value=10000, value=10000)
 
     # Main content area with tabs
-    tab1, tab3,  tab5, tab6 = st.tabs(["Data Extraction", "Results",  "🔗 Process PDFs", "📊 Results & Download"])
+    tab1, tab3,  tab5, tab6 = st.tabs(["Data Extraction", "  ",  "🔗 Process PDFs", "📊 Results & Download"])
 
     with tab1:
         render_data_extraction_tab()
