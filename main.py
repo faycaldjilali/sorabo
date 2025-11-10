@@ -825,7 +825,7 @@ def render_results_download_tab():
         
         if len(successful_records) > 0:
             for i, (index, row) in enumerate(successful_records.head(-1).iterrows(), 1):
-                with st.expander(f"Sample {i} - objet: {row.get('objet', 'N/A')} - Lots: {row.get('lot_numbers', 'None')} - Visite: {row.get('visite_obligatoire', 'no')}"):
+                with st.expander(f"Sample {i} - objet: {row.get('objet', 'N/A')} "):
                     st.write(f"**pdf link ** [{row.get('generated_link', 'N/A')}]({row.get('generated_link', '')})")
                     st.write(f"**Achteur:** {row.get('nomacheteur', 'N/A')}")
                     st.write(f"**Keywords Used:** {row.get('keywords_used', 'N/A')}")
@@ -835,7 +835,7 @@ def render_results_download_tab():
                     pdf_content = row.get('pdf_content', '')
                     if pdf_content:
                         # Show first 1000 characters
-                        preview = pdf_content[:1000] + "..." if len(pdf_content) > 5000 else pdf_content
+                        preview = pdf_content[:5000] + "..." if len(pdf_content) > 5000 else pdf_content
                         st.text_area(
                             f"Content Preview {i}",
                             preview,
