@@ -825,7 +825,7 @@ def render_results_download_tab():
         
         if len(successful_records) > 0:
             for i, (index, row) in enumerate(successful_records.head(-1).iterrows(), 1):
-                with st.expander(f"Sample {i} - objet: {row.get('objet', 'N/A')} "):
+                with st.expander(f"objet: {row.get('objet', 'N/A')} "):
                     st.write(f"**pdf link ** [{row.get('generated_link', 'N/A')}]({row.get('generated_link', '')})")
                     st.write(f"**Achteur:** {row.get('nomacheteur', 'N/A')}")
                     st.write(f"**Keywords Used:** {row.get('keywords_used', 'N/A')}")
