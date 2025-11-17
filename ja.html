@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Localhost Button Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        a {
+            color: #0066cc;
+            text-decoration: none;
+            margin: 10px 0;
+            display: inline-block;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .link-container {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Button and Link Example</h1>
+        
+        <!-- Button that redirects to external link -->
+        <button onclick="window.location.href='https://www.google.com'">
+            Go to Google
+        </button>
+
+        <!-- Button that creates new links -->
+        <button onclick="createNewLink()">
+            Create New Link
+        </button>
+
+        <!-- Container for dynamically created links -->
+        <div id="linkContainer" class="link-container">
+            <p>New links will appear here:</p>
+        </div>
+
+        <!-- Existing static links -->
+        <div>
+            <h3>Static Links:</h3>
+            <a href="https://www.wikipedia.org" target="_blank">Wikipedia</a><br>
+            <a href="https://www.github.com" target="_blank">GitHub</a>
+        </div>
+    </div>
+
+    <script>
+        let linkCounter = 1;
+        
+        function createNewLink() {
+            const links = [
+                "https://www.stackoverflow.com",
+                "https://www.youtube.com",
+                "https://www.reddit.com",
+                "https://www.twitter.com",
+                "https://www.linkedin.com"
+            ];
+            
+            // Get a random link from the array
+            const randomLink = links[Math.floor(Math.random() * links.length)];
+            
+            // Create new link element
+            const linkElement = document.createElement("a");
+            linkElement.href = randomLink;
+            linkElement.textContent = `New Link ${linkCounter}: ${randomLink}`;
+            linkElement.target = "_blank";
+            linkElement.style.display = "block";
+            linkElement.style.margin = "5px 0";
+            
+            // Add the link to the container
+            document.getElementById("linkContainer").appendChild(linkElement);
+            
+            // Add line break
+            document.getElementById("linkContainer").appendChild(document.createElement("br"));
+            
+            linkCounter++;
+        }
+    </script>
+</body>
+</html>

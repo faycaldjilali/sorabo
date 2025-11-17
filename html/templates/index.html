@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOAMP Data Extraction Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #262730;
+            margin-bottom: 10px;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .input-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        input[type="date"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border 0.3s;
+        }
+        
+        input[type="date"]:focus {
+            border-color: #FF4B4B;
+            outline: none;
+        }
+        
+        .streamlit-button {
+            background-color: #FF4B4B;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            outline: none;
+            display: block;
+            width: 100%;
+            margin: 25px 0;
+        }
+        
+        .streamlit-button:hover {
+            background-color: #FF3333;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .streamlit-button:active {
+            background-color: #E60000;
+            transform: translateY(0);
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .streamlit-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .streamlit-button:focus {
+            box-shadow: 0 0 0 3px rgba(255, 75, 75, 0.4);
+        }
+        
+        .output {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #FF4B4B;
+            font-size: 16px;
+            color: #333;
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .progress-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 20px;
+            background-color: #FF4B4B;
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .status-text {
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        
+        .record-count {
+            font-weight: 600;
+            color: #FF4B4B;
+        }
+        
+        .download-section {
+            margin-top: 20px;
+            text-align: center;
+            display: none;
+        }
+        
+        .download-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            outline: none;
+        }
+        
+        .download-btn:hover {
+            background-color: #45a049;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .log {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            font-size: 14px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+        
+        .api-info {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f1f3f4;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .api-info h3 {
+            color: #FF4B4B;
+            margin-bottom: 10px;
+        }
+        
+        .error {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        .success {
+            color: #2e7d32;
+            background-color: #e8f5e9;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        .server-status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        .status-healthy {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+        
+        .status-error {
+            background-color: #ffebee;
+            color: #d32f2f;
+            border: 1px solid #ffcdd2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BOAMP Data Extraction Tool</h1>
+        <p class="subtitle">Extract records for a specific date from the BOAMP API</p>
+        
+        <div class="server-status" id="server-status">
+            Checking server status...
+        </div>
+        
+        <div class="input-group">
+            <label for="target-date">Select Target Date:</label>
+            <input type="date" id="target-date" value="2025-11-14">
+        </div>
+        
+        <button class="streamlit-button" id="action-btn">Start Data Extraction</button>
+        
+        <div class="output" id="output">
+            <div class="status-text" id="status">Ready to start extraction</div>
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <div class="log" id="log"></div>
+            <div class="error" id="error"></div>
+            <div class="success" id="success"></div>
+        </div>
+        
+        <div class="download-section" id="download-section">
+            <p>Data extraction complete! Download your Excel file:</p>
+            <button class="download-btn" id="download-btn">Download Excel File</button>
+        </div>
+        
+        <div class="api-info">
+            <h3>API Information</h3>
+            <p>This frontend communicates with a FastAPI backend that runs the data extraction code.</p>
+            <p><strong>Endpoint:</strong> <code>POST /extract-data</code></p>
+            <p><strong>Request body:</strong> <code>{"target_date": "YYYY-MM-DD"}</code></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const button = document.getElementById('action-btn');
+            const status = document.getElementById('status');
+            const progressBar = document.getElementById('progress-bar');
+            const log = document.getElementById('log');
+            const downloadSection = document.getElementById('download-section');
+            const downloadBtn = document.getElementById('download-btn');
+            const dateInput = document.getElementById('target-date');
+            const errorDiv = document.getElementById('error');
+            const successDiv = document.getElementById('success');
+            const serverStatus = document.getElementById('server-status');
+            
+            let isProcessing = false;
+            
+            // Check server health on page load
+            checkServerHealth();
+            
+            button.addEventListener('click', function() {
+                if (isProcessing) return;
+                
+                isProcessing = true;
+                button.disabled = true;
+                button.textContent = "Processing...";
+                
+                // Clear previous logs and messages
+                log.innerHTML = '';
+                errorDiv.style.display = 'none';
+                successDiv.style.display = 'none';
+                progressBar.style.width = '0%';
+                downloadSection.style.display = 'none';
+                
+                // Get the target date
+                const targetDate = dateInput.value;
+                
+                // Call the FastAPI backend
+                callFastAPI(targetDate);
+            });
+            
+            downloadBtn.addEventListener('click', function() {
+                const targetDate = dateInput.value;
+                // Download the Excel file
+                window.open(`/download-excel/${targetDate}`, '_blank');
+            });
+            
+            async function checkServerHealth() {
+                try {
+                    const response = await fetch('/health');
+                    if (response.ok) {
+                        serverStatus.textContent = '✓ Server is running and healthy';
+                        serverStatus.className = 'server-status status-healthy';
+                    } else {
+                        throw new Error('Server not healthy');
+                    }
+                } catch (error) {
+                    serverStatus.textContent = '✗ Server is not responding. Make sure FastAPI is running on port 8000';
+                    serverStatus.className = 'server-status status-error';
+                    button.disabled = true;
+                }
+            }
+            
+            async function callFastAPI(targetDate) {
+                status.textContent = `Starting data extraction for ${targetDate}...`;
+                addLog(`Sending request to FastAPI backend for date: ${targetDate}`);
+                
+                try {
+                    const response = await fetch('/extract-data', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            target_date: targetDate
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Update UI based on response
+                    if (data.status === 'success') {
+                        status.textContent = `Data extraction complete! Found ${data.record_count} records for ${targetDate}`;
+                        progressBar.style.width = '100%';
+                        successDiv.textContent = data.message;
+                        successDiv.style.display = 'block';
+                        downloadSection.style.display = 'block';
+                        
+                        // Add logs from the backend if available
+                        if (data.logs && data.logs.length > 0) {
+                            data.logs.forEach(logEntry => {
+                                addLog(logEntry);
+                            });
+                        }
+                    } else {
+                        throw new Error(data.message || 'Unknown error occurred');
+                    }
+                    
+                } catch (error) {
+                    console.error('Error calling FastAPI:', error);
+                    status.textContent = 'Error during data extraction';
+                    errorDiv.textContent = `Error: ${error.message}`;
+                    errorDiv.style.display = 'block';
+                } finally {
+                    button.disabled = false;
+                    button.textContent = "Start Data Extraction";
+                    isProcessing = false;
+                }
+            }
+            
+            function addLog(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                log.innerHTML += `[${timestamp}] ${message}<br>`;
+                log.scrollTop = log.scrollHeight;
+            }
+        });
+    </script>
+</body>
+</html>

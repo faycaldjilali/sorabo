@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOAMP Data Processor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .card {
+            margin-bottom: 1rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        .keyword-item {
+            padding: 0.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .keyword-item:hover {
+            background-color: #f8f9fa;
+        }
+        .keyword-item.selected {
+            background-color: #0d6efd;
+            color: white;
+            border-color: #0d6efd;
+        }
+        .status-success {
+            color: #198754;
+        }
+        .status-warning {
+            color: #ffc107;
+        }
+        .status-error {
+            color: #dc3545;
+        }
+        #loading {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h1 class="h3 mb-0"><i class="fas fa-database me-2"></i>BOAMP Data Processor</h1>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Upload Section -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0"><i class="fas fa-upload me-2"></i>Upload Data File</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="fileInput" class="form-label">Select CSV or Excel file:</label>
+                            <input class="form-control" type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+                        </div>
+                        <button class="btn btn-primary" onclick="uploadFile()" id="uploadBtn">
+                            <i class="fas fa-upload me-2"></i>Upload File
+                        </button>
+                        <div id="fileInfo" class="mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Keyword Selection Section -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0"><i class="fas fa-filter me-2"></i>Keyword Filtering</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h3 class="h6">Predefined Keywords</h3>
+                                <div id="keywordList" style="max-height: 400px; overflow-y: auto;">
+                                    {% for keyword in predefined_keywords %}
+                                    <div class="keyword-item" onclick="toggleKeyword(this)" data-keyword="{{ keyword }}">
+                                        {{ keyword }}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="selectAllKeywords()">Select All</button>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="deselectAllKeywords()">Deselect All</button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h3 class="h6">Custom Keywords</h3>
+                                <textarea class="form-control" id="customKeywords" rows="10" 
+                                          placeholder="Enter additional keywords, one per line..."></textarea>
+                                <small class="text-muted">Add any custom keywords not in the predefined list</small>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-primary" onclick="applyFilter()" id="filterBtn">
+                                <i class="fas fa-search me-2"></i>Apply Keyword Filter
+                            </button>
+                        </div>
+                        <div id="filterResult" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Remove Duplicates Section -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0"><i class="fas fa-backspace me-2"></i>Remove Duplicates</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="idColumn" class="form-label">ID Column:</label>
+                                <select class="form-select" id="idColumn"></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="keywordColumn" class="form-label">Keyword Column:</label>
+                                <select class="form-select" id="keywordColumn"></select>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-primary" onclick="removeDuplicates()" id="dedupeBtn">
+                                <i class="fas fa-backspace me-2"></i>Remove Duplicates
+                            </button>
+                        </div>
+                        <div id="dedupeResult" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Download Section -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0"><i class="fas fa-download me-2"></i>Download Results</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="btn-group">
+                            <button class="btn btn-success" onclick="downloadFile('cleaned')" id="downloadCleanedBtn" disabled>
+                                <i class="fas fa-download me-2"></i>Download Cleaned Data
+                            </button>
+                            <button class="btn btn-outline-success" onclick="downloadFile('filtered')" id="downloadFilteredBtn" disabled>
+                                <i class="fas fa-download me-2"></i>Download Filtered Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="row" id="loading">
+            <div class="col-12 text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Processing...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentFileId = null;
+        let selectedKeywords = [];
+
+        function toggleKeyword(element) {
+            const keyword = element.getAttribute('data-keyword');
+            const index = selectedKeywords.indexOf(keyword);
+            
+            if (index > -1) {
+                selectedKeywords.splice(index, 1);
+                element.classList.remove('selected');
+            } else {
+                selectedKeywords.push(keyword);
+                element.classList.add('selected');
+            }
+        }
+
+        function selectAllKeywords() {
+            selectedKeywords = [];
+            document.querySelectorAll('.keyword-item').forEach(item => {
+                item.classList.add('selected');
+                selectedKeywords.push(item.getAttribute('data-keyword'));
+            });
+        }
+
+        function deselectAllKeywords() {
+            selectedKeywords = [];
+            document.querySelectorAll('.keyword-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            showLoading(true);
+            
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    currentFileId = result.file_id;
+                    document.getElementById('fileInfo').innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            File uploaded successfully: ${result.filename}<br>
+                            Rows: ${result.rows}, Columns: ${result.columns}
+                        </div>
+                    `;
+                    document.getElementById('fileInfo').style.display = 'block';
+                    
+                    // Populate column dropdowns
+                    populateColumnDropdowns(result.column_names);
+                    
+                } else {
+                    throw new Error(result.detail);
+                }
+            } catch (error) {
+                document.getElementById('fileInfo').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error: ${error.message}
+                    </div>
+                `;
+                document.getElementById('fileInfo').style.display = 'block';
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function populateColumnDropdowns(columns) {
+            const idColumn = document.getElementById('idColumn');
+            const keywordColumn = document.getElementById('keywordColumn');
+            
+            idColumn.innerHTML = '';
+            keywordColumn.innerHTML = '';
+            
+            columns.forEach(column => {
+                const option1 = new Option(column, column);
+                const option2 = new Option(column, column);
+                
+                idColumn.add(option1);
+                keywordColumn.add(option2);
+            });
+            
+            // Set default selections
+            if (columns.length > 0) {
+                idColumn.selectedIndex = 0;
+                keywordColumn.selectedIndex = columns.length - 1;
+            }
+        }
+
+        async function applyFilter() {
+            if (!currentFileId) {
+                alert('Please upload a file first');
+                return;
+            }
+
+            if (selectedKeywords.length === 0 && !document.getElementById('customKeywords').value.trim()) {
+                alert('Please select at least one keyword or add custom keywords');
+                return;
+            }
+
+            showLoading(true);
+
+            const formData = new FormData();
+            formData.append('file_id', currentFileId);
+            formData.append('selected_keywords', JSON.stringify(selectedKeywords));
+            formData.append('custom_keywords', document.getElementById('customKeywords').value);
+
+            try {
+                const response = await fetch('/filter', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                const filterResult = document.getElementById('filterResult');
+                if (response.ok) {
+                    if (result.status === 'success') {
+                        filterResult.innerHTML = `
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle me-2"></i>
+                                ${result.message}
+                            </div>
+                        `;
+                        document.getElementById('downloadFilteredBtn').disabled = false;
+                    } else {
+                        filterResult.innerHTML = `
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                ${result.message}
+                            </div>
+                        `;
+                    }
+                } else {
+                    throw new Error(result.detail);
+                }
+            } catch (error) {
+                document.getElementById('filterResult').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error: ${error.message}
+                    </div>
+                `;
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function removeDuplicates() {
+            if (!currentFileId) {
+                alert('Please upload and filter a file first');
+                return;
+            }
+
+            const idColumn = document.getElementById('idColumn').value;
+            const keywordColumn = document.getElementById('keywordColumn').value;
+
+            if (!idColumn || !keywordColumn) {
+                alert('Please select both ID and Keyword columns');
+                return;
+            }
+
+            showLoading(true);
+
+            const formData = new FormData();
+            formData.append('file_id', currentFileId);
+            formData.append('id_column', idColumn);
+            formData.append('keyword_column', keywordColumn);
+
+            try {
+                const response = await fetch('/remove-duplicates', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                const dedupeResult = document.getElementById('dedupeResult');
+                if (response.ok) {
+                    dedupeResult.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            ${result.message}
+                            ${result.duplicate_ids_count > 0 ? 
+                                `<br><small>Found ${result.duplicate_ids_count} IDs with duplicates. Keywords have been combined.</small>` : ''}
+                        </div>
+                    `;
+                    document.getElementById('downloadCleanedBtn').disabled = false;
+                } else {
+                    throw new Error(result.detail);
+                }
+            } catch (error) {
+                document.getElementById('dedupeResult').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error: ${error.message}
+                    </div>
+                `;
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function downloadFile(dataType) {
+            if (!currentFileId) {
+                alert('No file processed');
+                return;
+            }
+            
+            window.open(`/download/${currentFileId}?data_type=${dataType}`, '_blank');
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // Initialize with some keywords selected
+        document.addEventListener('DOMContentLoaded', function() {
+            // Select all predefined keywords except the last one by default
+            const keywords = document.querySelectorAll('.keyword-item');
+            for (let i = 0; i < keywords.length - 1; i++) {
+                toggleKeyword(keywords[i]);
+            }
+        });
+    </script>
+</body>
+</html>
